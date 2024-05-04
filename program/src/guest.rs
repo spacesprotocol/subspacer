@@ -2,8 +2,7 @@ use alloc::vec::Vec;
 use k256::ecdsa::{Signature, VerifyingKey};
 use k256::ecdsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
-use spacedb::{Hash, Sha256Hasher, subtree::{SubTree, ValueOrHash}};
-use spacedb::subtree::VerifyError;
+use spacedb::{Hash, Sha256Hasher, subtree::{SubTree, ValueOrHash}, VerifyError};
 use crate::{Entry, TransactionReader};
 
 #[derive(Serialize, Deserialize)]
@@ -68,8 +67,16 @@ pub fn handle_tx_set(mut input: Vec<u8>) -> Result<Commitment> {
             ValueOrHash::Hash(registration.owner.try_into().unwrap())
         )
             .map_err(|e| match e {
-                VerifyError::KeyExists => GuestError::KeyExists,
-                VerifyError::IncompleteProof => GuestError::IncompleteSubTree,
+                spacedb::Error::Verify(e) => {
+                    match e {
+                        VerifyError::IncompleteProof => GuestError::IncompleteSubTree,
+                        VerifyError::KeyNotFound => GuestError::IncompleteSubTree,
+                        VerifyError::KeyExists => GuestError::KeyExists,
+                    }
+                },
+                _ => {
+                    unreachable!("expected verify error")
+                },
             })?;
     }
 
